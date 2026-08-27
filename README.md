@@ -1,1 +1,0 @@
-# ArraiaPay_G1
