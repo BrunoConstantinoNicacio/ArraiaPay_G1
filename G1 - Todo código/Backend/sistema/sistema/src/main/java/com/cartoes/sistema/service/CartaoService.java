@@ -16,19 +16,28 @@ public class CartaoService {
         this.repository = repository;
     }
 
-    // Gerar um novo cartão
+
     public Cartao gerarCartao() {
+        return gerarCartao("Não informado");
+    }
+
+    public Cartao gerarCartao(String nomeParticipante) {
 
         Cartao cartao = new Cartao();
 
-        // Criar código único
-        String codigo = UUID.randomUUID().toString();
-
-        cartao.setCodigoQr(codigo);
+        cartao.setCodigoQr(UUID.randomUUID().toString());
         cartao.setStatus("ATIVO");
+        cartao.setSaldo(java.math.BigDecimal.ZERO);
+
+        cartao.setNomeParticipante(
+                nomeParticipante == null || nomeParticipante.isBlank()
+                        ? "Não informado"
+                        : nomeParticipante.trim()
+        );
 
         return repository.save(cartao);
     }
+
 
     // Bloquear ou desbloquear cartão
     public Cartao alternarStatus(Long id) {
@@ -51,4 +60,24 @@ public class CartaoService {
     public java.util.List<Cartao> listarCartoes() {
         return repository.findAll();
     }
+
+    // Validar cartão pelo código QR
+    public String validarQrCode(String codigoQr) {
+
+        return repository.findByCodigoQr(codigoQr)
+                .map(cartao -> {
+
+                    if ("BLOQUEADO".equals(cartao.getStatus())) {
+                        return "E02 - Cartão bloqueado";
+                    }
+
+                    if ("ATIVO".equals(cartao.getStatus())) {
+                        return "Cartão válido";
+                    }
+
+                    return "Status desconhecido";
+                })
+                .orElse("E01 - Cartão não encontrado");
+    }
+
 }

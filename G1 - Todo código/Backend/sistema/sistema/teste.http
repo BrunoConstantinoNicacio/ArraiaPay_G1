@@ -1,0 +1,14 @@
+
+### Criar um novo cartão
+POST http://localhost:8080/api/cartoes
+Accept: application/json
+
+### Listar todos os cartões
+GET http://localhost:8080/api/cartoes
+Accept: application/json
+
+
+### Bloquear ou desbloquear cartão
+PUT http://localhost:8080/api/cartoes/1/status
+Accept: application/json
+

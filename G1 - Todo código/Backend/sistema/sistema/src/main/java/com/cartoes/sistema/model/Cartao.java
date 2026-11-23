@@ -49,4 +49,16 @@ public class Cartao {
     public void setSaldo(BigDecimal saldo) {
         this.saldo = saldo;
     }
+
+    @Column(name = "nome_participante")
+    private String nomeParticipante;
+
+    public String getNomeParticipante() {
+        return nomeParticipante;
+    }
+
+    public void setNomeParticipante(String nomeParticipante) {
+        this.nomeParticipante = nomeParticipante;
+    }
+
 }

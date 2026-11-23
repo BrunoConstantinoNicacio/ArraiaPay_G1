@@ -1,110 +1,196 @@
-const API_URL = 'http://localhost:3000/cartoes';
 
-// 1. Abre o formulário direto, sem depender do banco por enquanto
+const API_URL = "http://localhost:8080/api/cartoes";
+
+// ABRIR FORMULÁRIO
 function abrirFormulario() {
-    // Gera um código temporário para você testar a tela
-    document.getElementById("inputCodigoQR").value = "CARTAO-003";
+    document.getElementById("inputCodigoQR").value =
+        "Gerado automaticamente";
+
     document.getElementById("inputParticipante").value = "";
     document.getElementById("inputSaldo").value = "0.00";
-    
-    // Abre o painel na hora
+
     document.getElementById("painelCadastro").style.display = "block";
 }
 
-// 2. Salva o cartão enviando os dados para a API salvar no MySQL
+// FECHAR FORMULÁRIO
+function fecharFormulario() {
+    document.getElementById("painelCadastro").style.display = "none";
+}
+
+// CRIAR NOVO CARTÃO
+
 async function salvarCartao() {
-    const codigo_qr = document.getElementById("inputCodigoQR").value;
-    const nome_participante = document.getElementById("inputParticipante").value || "Não informado";
-    const saldo_atual = parseFloat(document.getElementById("inputSaldo").value) || 0.00;
+
+    const nome = document.getElementById(
+        "inputParticipante"
+    ).value.trim();
 
     try {
         const resposta = await fetch(API_URL, {
-            method: 'POST',
+            method: "POST",
             headers: {
-                'Content-Type': 'application/json'
+                "Content-Type": "application/json"
             },
-            body: JSON.stringify({ codigo_qr, nome_participante, saldo_atual })
+            body: JSON.stringify({
+                nomeParticipante: nome || "Não informado"
+            })
         });
 
-        if (resposta.ok) {
-            fecharFormulario();
-            renderizarTabela(); // Recarrega a tabela puxando os dados atualizados do banco
-        } else {
-            alert("Erro ao salvar o cartão no banco de dados.");
+        if (!resposta.ok) {
+            throw new Error("Erro ao criar cartão");
         }
+
+        fecharFormulario();
+        await renderizarTabela();
+
+        alert("Cartão criado com sucesso!");
+
     } catch (erro) {
-        console.error("Erro na requisição de salvamento:", erro);
+        console.error(erro);
+        alert("Erro ao criar cartão.");
     }
 }
 
-// 3. Busca os dados do banco e desenha a tabela com as miniaturas de QR Code
+
+// LISTAR CARTÕES NA TABELA
 async function renderizarTabela() {
     try {
         const resposta = await fetch(API_URL);
-        const cartoes = await resposta.json();
 
+        if (!resposta.ok) {
+            throw new Error("Erro ao carregar cartões");
+        }
+
+        const cartoes = await resposta.json();
         const tbody = document.getElementById("tabelaCorpo");
+
         tbody.innerHTML = "";
 
         cartoes.forEach(cartao => {
-            const badgeClass = cartao.status === "ativo" ? "badge-ativo" : "badge-bloqueado";
-            const textoBtn = cartao.status === "ativo" ? "Bloquear" : "Desbloquear";
-            const idDivMiniQR = `mini-qr-${cartao.id_cartao}`;
+            const ativo = cartao.status === "ATIVO";
 
             const tr = document.createElement("tr");
-            tr.innerHTML = `
-                <td>${cartao.id_cartao}</td>
-                <td>
-                    <div id="${idDivMiniQR}" class="mini-qr" title="Clique para ampliar" onclick="abrirModalQR('${cartao.codigo_qr}', '${cartao.nome_participante}')"></div>
-                </td>
-                <td>${cartao.nome_participante}</td>
-                <td><span class="${badgeClass}">${cartao.status}</span></td>
-                <td>R$ ${Number(cartao.saldo_atual).toFixed(2).replace('.', ',')}</td>
-                <td>
-                    <button class="btn-acao btn-bloq" onclick="alternarStatus(${cartao.id_cartao})">${textoBtn}</button>
-                    <button class="btn-acao btn-editar">Editar</button>
-                </td>
-            `;
-            tbody.appendChild(tr);
 
-            // Desenha a miniatura do QR Code na linha
-            new QRCode(document.getElementById(idDivMiniQR), {
-                text: cartao.codigo_qr,
-                width: 42,
-                height: 42,
-                correctLevel: QRCode.CorrectLevel.L
-            });
+            // ID
+            const tdId = tr.insertCell();
+            tdId.textContent = cartao.id;
+
+            // QR CODE
+            const tdQr = tr.insertCell();
+
+            const imagemQr = document.createElement("img");
+            imagemQr.src = `${API_URL}/${cartao.id}/qrcode`;
+            imagemQr.width = 42;
+            imagemQr.height = 42;
+            imagemQr.alt = "QR Code";
+            imagemQr.style.cursor = "pointer";
+
+            imagemQr.onclick = () => abrirModalQR(cartao);
+
+            tdQr.appendChild(imagemQr);
+
+            // PARTICIPANTE
+            const tdNome = tr.insertCell();
+            tdNome.textContent =
+                cartao.nomeParticipante || "Não informado";
+
+            // STATUS
+            const tdStatus = tr.insertCell();
+
+            const badge = document.createElement("span");
+            badge.className = ativo
+                ? "badge-ativo"
+                : "badge-bloqueado";
+
+            badge.textContent = cartao.status;
+            tdStatus.appendChild(badge);
+
+            // SALDO
+            const tdSaldo = tr.insertCell();
+
+            tdSaldo.textContent =
+                Number(cartao.saldo ?? 0).toLocaleString("pt-BR", {
+                    style: "currency",
+                    currency: "BRL"
+                });
+
+            // AÇÕES
+            const tdAcoes = tr.insertCell();
+
+            const botaoStatus = document.createElement("button");
+
+            botaoStatus.className = "btn-acao btn-bloq";
+            botaoStatus.textContent = ativo
+                ? "Bloquear"
+                : "Desbloquear";
+
+            botaoStatus.onclick = () =>
+                alternarStatus(cartao.id);
+
+            tdAcoes.appendChild(botaoStatus);
+
+            tbody.appendChild(tr);
         });
+
     } catch (erro) {
-        console.error("Erro ao carregar tabela do banco:", erro);
+        console.error(erro);
+        alert("Erro ao buscar cartões. Verifique o Java.");
     }
 }
 
-// 4. Abre o modal com o QR Code ampliado
-function abrirModalQR(codigo, nome) {
-    document.getElementById("qrCodigoTexto").innerText = codigo;
-    document.getElementById("qrParticipante").innerText = "Participante: " + nome;
-    
-    const containerGrande = document.getElementById("qrCodeGrande");
-    containerGrande.innerHTML = ""; 
+// MOSTRAR QR CODE AMPLIADO
+function abrirModalQR(cartao) {
+    document.getElementById("qrCodigoTexto").textContent =
+        cartao.codigoQr;
 
-    new QRCode(containerGrande, {
-        text: codigo,
-        width: 180,
-        height: 180
-    });
+    document.getElementById("qrParticipante").textContent =
+        "Participante: " +
+        (cartao.nomeParticipante || "Não informado");
+
+    const container = document.getElementById("qrCodeGrande");
+
+    container.innerHTML = "";
+
+    const imagem = document.createElement("img");
+
+    imagem.src = `${API_URL}/${cartao.id}/qrcode`;
+    imagem.width = 180;
+    imagem.height = 180;
+    imagem.alt = "QR Code ampliado";
+
+    container.appendChild(imagem);
 
     document.getElementById("modalQR").style.display = "flex";
 }
 
+// FECHAR QR CODE
 function fecharModalQR() {
     document.getElementById("modalQR").style.display = "none";
 }
 
-function alternarStatus(id) {
-    // Aqui depois a Dupla B pode implementar o PUT/UPDATE de status no banco
-    alert("Função de alterar status do cartão ID: " + id);
+// BLOQUEAR OU DESBLOQUEAR
+async function alternarStatus(id) {
+    try {
+        const resposta = await fetch(
+            `${API_URL}/${id}/status`,
+            {
+                method: "PUT"
+            }
+        );
+
+        if (!resposta.ok) {
+            throw new Error("Erro ao alterar status");
+        }
+
+        await renderizarTabela();
+
+    } catch (erro) {
+        console.error(erro);
+        alert("Erro ao bloquear ou desbloquear cartão.");
+    }
 }
 
-// Carrega a tabela assim que a página abre
-renderizarTabela();
+// INICIAR SISTEMA
+document.addEventListener("DOMContentLoaded", () => {
+    renderizarTabela();
+});
